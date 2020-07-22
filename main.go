@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"./cli"
-	"./opsys"
+	"github.com/vrmiguel/shego/cli"
+	"github.com/vrmiguel/shego/opsys"
 )
 
 func signalHandler(q chan bool, cfg cli.Args) {

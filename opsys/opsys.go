@@ -3,22 +3,22 @@ package opsys
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strings"
 
-	"../cli"
-	"../utils"
+	"github.com/vrmiguel/shego/cli"
+	"github.com/vrmiguel/shego/utils"
 )
 
 // UserData holds information about the current user
 type UserData struct {
 	Username  string // Username
 	Hostname  string // Hostname
-	Hmd       string // Home directory
-	Cwd       string // Current working directory
-	PrettyCwd string // Current working directory with /home/dir translated to ~
+	HomeDir   string // Home directory
+	CurrentWD string // Current working directory
+	PrettyCWD string // Current working directory with /home/dir translated to ~
 }
 
 // GetUserData gathers info about the user and saves it into a UserData object
@@ -31,29 +31,29 @@ func GetUserData() UserData {
 	cwd, err := filepath.Abs("./")
 	utils.AssertNonNil(err)
 
-	userdata.Cwd = cwd
+	userdata.CurrentWD = cwd
 	curHost, err := os.Hostname()
 	utils.AssertNonNil(err)
 
 	hmd, err := os.UserHomeDir()
 	utils.AssertNonNil(err)
 
-	userdata.Hmd = hmd
+	userdata.HomeDir = hmd
 	userdata.Hostname = curHost
-	userdata.PrettyCwd = strings.Replace(cwd, hmd, "~", 1)
+	userdata.PrettyCWD = strings.Replace(cwd, hmd, "~", 1)
 	return userdata
 }
 
 func updateCwd(ud *UserData) {
 	cwd, err := filepath.Abs("./")
 	utils.AssertNonNil(err)
-	ud.Cwd = cwd
-	ud.PrettyCwd = strings.Replace(cwd, ud.Hmd, "~", 1)
+	ud.CurrentWD = cwd
+	ud.PrettyCWD = strings.Replace(cwd, ud.HomeDir, "~", 1)
 }
 
 // ShowPrompt returns the shell's prompt (username@hostname:cwd$)
 func ShowPrompt(ud UserData) {
-	fmt.Printf("%s%s@%s%s:%s%s$ ", cli.AnsiGreen, ud.Username, ud.Hostname, cli.AnsiBlue, ud.PrettyCwd, cli.AnsiReset)
+	fmt.Printf("%s%s@%s%s:%s%s$ ", cli.AnsiGreen, ud.Username, ud.Hostname, cli.AnsiBlue, ud.PrettyCWD, cli.AnsiReset)
 }
 
 func changeDirectory(tokens []string, ud *UserData) {
@@ -62,7 +62,7 @@ func changeDirectory(tokens []string, ud *UserData) {
 		return
 	}
 	if len(tokens) == 1 || tokens[1] == "~" || tokens[1] == "$HOME" {
-		err := os.Chdir(ud.Hmd)
+		err := os.Chdir(ud.HomeDir)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -76,16 +76,27 @@ func changeDirectory(tokens []string, ud *UserData) {
 	}
 }
 
+func runSimpleCommand(tokens []string) error {
+	var simpleCommand *exec.Cmd
+	simpleCommand = exec.Command(tokens[0], tokens[1:]...)
+	res, err := simpleCommand.Output()
+	print(string(res))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "shego: problem running '%s'\n", simpleCommand.Args)
+	}
+	return nil
+}
+
 // ParseCommand TODO description
 func ParseCommand(line string, ud *UserData) {
+	line = line[:len(line)-1] // Remove newline
 	tokens := strings.Split(line, " ")
-	re := regexp.MustCompile("\\n")
-	for i := 0; i < len(tokens); i++ {
-		tokens[i] = re.ReplaceAllString(tokens[i], "")
-	}
 	if tokens[0] == "cd" {
 		changeDirectory(tokens, ud)
 		updateCwd(ud)
+	} else if tokens[0] == "exit" {
+		os.Exit(0)
+	} else {
+		runSimpleCommand(tokens)
 	}
-
 }
