@@ -87,6 +87,40 @@ func runSimpleCommand(tokens []string) error {
 	return nil
 }
 
+func runPipedCommand(tokens []string, pipePos int) error {
+	firstCommand := exec.Command(tokens[0], tokens[1:pipePos]...)
+	secondCommand := exec.Command(tokens[pipePos+1], tokens[pipePos+2:]...)
+	// fmt.Printf("first cmd: %s\n", firstCommand.Args)
+	// fmt.Printf("second cmd: %s\n", secondCommand.Args)
+	pipe, _ := firstCommand.StdoutPipe()
+	defer pipe.Close()
+	secondCommand.Stdin = pipe
+	firstCommand.Start()
+	res, _ := secondCommand.Output()
+	fmt.Printf(string(res))
+	return nil
+}
+
+// TODO: find '>>', find more than one '>'
+func findRedirectionTokens(tokens []string) int {
+	for i, token := range tokens {
+		if token == ">" {
+			return i
+		}
+	}
+	return -1
+}
+
+// TODO: find more than one '|'
+func findPipeTokens(tokens []string) int {
+	for i, token := range tokens {
+		if token == "|" {
+			return i
+		}
+	}
+	return -1
+}
+
 // ParseCommand TODO description
 func ParseCommand(line string, ud *UserData) {
 	line = line[:len(line)-1] // Remove newline
@@ -97,6 +131,10 @@ func ParseCommand(line string, ud *UserData) {
 	} else if tokens[0] == "exit" {
 		os.Exit(0)
 	} else {
-		runSimpleCommand(tokens)
+		if pipePos := findPipeTokens(tokens); pipePos != -1 {
+			runPipedCommand(tokens, pipePos)
+		} else {
+			runSimpleCommand(tokens)
+		}
 	}
 }
